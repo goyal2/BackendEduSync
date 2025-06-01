@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using EduSyncWebApi.Data;
 using EduSyncWebApi.Services;
-using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,10 +27,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add Application Insights
-builder.Services.AddApplicationInsightsTelemetry(options =>
-{
-    options.ConnectionString = $"InstrumentationKey={builder.Configuration["ApplicationInsights:InstrumentationKey"]}";
-});
+builder.Services.AddApplicationInsightsTelemetry();
 
 var app = builder.Build();
 
