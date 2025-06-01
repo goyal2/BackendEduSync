@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using EduSyncWebApi.Data;
 using EduSyncWebApi.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.ApplicationInsights.AspNetCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
