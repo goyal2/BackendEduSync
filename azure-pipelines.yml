@@ -1,0 +1,63 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+- name: buildConfiguration
+  value: 'Release'
+- name: azureAppName
+  value: 'backendprojectwebapp'
+- name: ASPNETCORE_ENVIRONMENT
+  value: 'Production'
+- name: ASPNETCORE_DETAILED_ERRORS
+  value: 'true'
+
+steps:
+- checkout: self
+  clean: true
+  fetchDepth: 1
+
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '8.x'
+  displayName: 'Install .NET SDK'
+
+- script: |
+    ls -la
+    pwd
+    dotnet restore EduSyncWebApi.sln
+  displayName: 'Restore Dependencies'
+
+- script: |
+    dotnet build EduSyncWebApi.sln --configuration $(buildConfiguration) --no-restore
+  displayName: 'Build .NET Project'
+
+- script: |
+    dotnet publish EduSyncWebApi.sln -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory) --no-build
+  displayName: 'Publish .NET Project'
+
+- script: |
+    echo "Checking published artifact directory: $(Build.ArtifactStagingDirectory)"
+    ls -la $(Build.ArtifactStagingDirectory)
+    echo "Contents of web.config:"
+    cat $(Build.ArtifactStagingDirectory)/web.config
+  displayName: 'Verify Published Files'
+
+- task: AzureWebApp@1
+  displayName: 'Deploy to Azure App Service'
+  inputs:
+    azureSubscription: 'AzureConnection25'
+    appType: 'webApp'
+    appName: '$(azureAppName)'
+    package: '$(Build.ArtifactStagingDirectory)'
+    deploymentMethod: 'auto'
+    startupCommand: 'dotnet EduSyncWebApi.dll'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
