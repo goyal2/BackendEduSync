@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using EduSyncWebApi.Data;
 using EduSyncWebApi.Services;
+using Microsoft.ApplicationInsights.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
