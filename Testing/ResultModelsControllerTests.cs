@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using EduSyncWebApi.Controllers;
 using EduSyncWebApi.Models;
 using EduSyncWebApi.DTO;
+using EduSyncWebApi.Services;
+using Microsoft.Extensions.Logging;
+using Moq;
 using NUnit.Framework;
 
 namespace Testing
@@ -10,12 +13,16 @@ namespace Testing
     public class ResultModelsControllerTests : TestBase
     {
         private ResultModelsController _controller;
+        private Mock<IEventHubService> _mockEventHubService;
+        private Mock<ILogger<ResultModelsController>> _mockLogger;
 
         [SetUp]
         public override void Setup()
         {
             base.Setup();
-            _controller = new ResultModelsController(_context);
+            _mockEventHubService = new Mock<IEventHubService>();
+            _mockLogger = new Mock<ILogger<ResultModelsController>>();
+            _controller = new ResultModelsController(_context, _mockEventHubService.Object, _mockLogger.Object);
         }
 
         [Test]

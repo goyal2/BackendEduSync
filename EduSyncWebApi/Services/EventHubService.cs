@@ -5,7 +5,13 @@ using System.Text.Json;
 
 namespace EduSyncWebApi.Services
 {
-    public class EventHubService
+    public interface IEventHubService
+    {
+        Task SendEventAsync<T>(T eventData, string eventType);
+        ValueTask DisposeAsync();
+    }
+
+    public class EventHubService : IEventHubService
     {
         private readonly EventHubProducerClient _producerClient;
         private readonly ILogger<EventHubService> _logger;

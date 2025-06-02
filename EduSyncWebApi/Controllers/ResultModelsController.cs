@@ -18,12 +18,12 @@ namespace EduSyncWebApi.Controllers
     public class ResultModelsController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly EventHubService _eventHubService;
+        private readonly IEventHubService _eventHubService;
         private readonly ILogger<ResultModelsController> _logger;
 
         public ResultModelsController(
             AppDbContext context,
-            EventHubService eventHubService,
+            IEventHubService eventHubService,
             ILogger<ResultModelsController> logger)
         {
             _context = context;
