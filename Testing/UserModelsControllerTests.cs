@@ -1,180 +1,171 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using EduSyncWebApi.Controllers;
+using Microsoft.EntityFrameworkCore;
+using EduSyncWebApi.Data;
 using EduSyncWebApi.Models;
 using EduSyncWebApi.DTO;
-using Microsoft.Extensions.Logging;
-using Moq;
-using NUnit.Framework;
 
-namespace Testing
+namespace EduSyncWebApi.Controllers
 {
-    [TestFixture]
-    public class UserModelsControllerTests : TestBase
+    [Route("api/[controller]")]
+    [ApiController]
+    public class UserModelsController : ControllerBase
     {
-        private UserModelsController _controller;
-        private Mock<ILogger<UserModelsController>> _mockLogger;
+        private readonly AppDbContext _context;
 
-        [SetUp]
-        public override void Setup()
+        public UserModelsController(AppDbContext context)
         {
-            base.Setup();
-            _mockLogger = new Mock<ILogger<UserModelsController>>();
-            _controller = new UserModelsController(_context, _mockLogger.Object);
+            _context = context;
         }
 
-        [Test]
-        public async Task GetUserModels_ReturnsAllUsers()
+        // GET: api/UserModels
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<UserModel>>> GetUserModels()
         {
-            // Arrange
-            var users = new List<UserModel>
+
+            return await _context.UserModels.ToListAsync();
+        }
+
+        // GET: api/UserModels/{id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<UserModel>> GetUserModel(Guid id)
+        {
+            var userModel = await _context.UserModels.FindAsync(id);
+            if (userModel == null)
             {
-                new UserModel 
-                { 
-                    UserId = Guid.NewGuid(), 
-                    Name = "Test User 1", 
-                    Email = "test1@example.com", 
-                    Role = "Student",
-                    PasswordHash = "hashedpassword1"
-                },
-                new UserModel 
-                { 
-                    UserId = Guid.NewGuid(), 
-                    Name = "Test User 2", 
-                    Email = "test2@example.com", 
-                    Role = "Instructor",
-                    PasswordHash = "hashedpassword2"
+                return NotFound();
+            }
+
+            return userModel;
+        }
+
+        // PUT: api/UserModels/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutUserModel(Guid id, UserDTO userModel)
+        {
+            if (id != userModel.UserId)
+            {
+                return BadRequest("User ID mismatch.");
+            }
+
+            var existingUser = await _context.UserModels.FindAsync(id);
+            if (existingUser == null)
+            {
+                return NotFound("User not found.");
+            }
+
+            existingUser.Name = userModel.Name;
+            existingUser.Email = userModel.Email;
+            existingUser.Role = userModel.Role;
+            existingUser.PasswordHash = userModel.PasswordHash;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return StatusCode(500, "A concurrency error occurred.");
+            }
+
+            return NoContent();
+        }
+
+        // POST: api/UserModels
+        [HttpPost]
+        public async Task<ActionResult<UserModel>> PostUserModel(UserDTO userModel)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var newUser = new UserModel
+            {
+                UserId = userModel.UserId,
+                Name = userModel.Name,
+                Email = userModel.Email,
+                Role = userModel.Role,
+                PasswordHash = userModel.PasswordHash
+            };
+
+            _context.UserModels.Add(newUser);
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                if (UserModelExists(newUser.UserId))
+                {
+                    return Conflict("A user with this ID already exists.");
                 }
-            };
-            await _context.UserModels.AddRangeAsync(users);
-            await _context.SaveChangesAsync();
 
-            // Act
-            var result = await _controller.GetUserModels();
+                throw;
+            }
 
-            // Assert
-            Assert.That(result.Value, Is.Not.Null);
-            Assert.That(result.Value.Count(), Is.EqualTo(2));
+            return CreatedAtAction(nameof(GetUserModel), new { id = newUser.UserId }, newUser);
         }
 
-        [Test]
-        public async Task GetUserModel_WithValidId_ReturnsUser()
+
+        // POST: api/UserModels/login
+        [HttpPost("login")]
+        public async Task<ActionResult<UserDTO>> Login([FromBody] LoginInput loginData)
         {
-            // Arrange
-            var userId = Guid.NewGuid();
-            var user = new UserModel 
-            { 
-                UserId = userId, 
-                Name = "Test User", 
-                Email = "test@example.com", 
-                Role = "Student",
-                PasswordHash = "hashedpassword"
-            };
-            await _context.UserModels.AddAsync(user);
-            await _context.SaveChangesAsync();
-
-            // Act
-            var result = await _controller.GetUserModel(userId);
-
-            // Assert
-            Assert.That(result.Value, Is.Not.Null);
-            Assert.That(result.Value.UserId, Is.EqualTo(userId));
-            Assert.That(result.Value.Name, Is.EqualTo("Test User"));
-        }
-
-        [Test]
-        public async Task GetUserModel_WithInvalidId_ReturnsNotFound()
-        {
-            // Arrange
-            var invalidId = Guid.NewGuid();
-
-            // Act
-            var result = await _controller.GetUserModel(invalidId);
-
-            // Assert
-            Assert.That(result.Result, Is.InstanceOf<NotFoundResult>());
-        }
-
-        [Test]
-        public async Task PostUserModel_WithValidData_CreatesUser()
-        {
-            // Arrange
-            var userDto = new UserDTO
+            if (string.IsNullOrWhiteSpace(loginData.Email) || string.IsNullOrWhiteSpace(loginData.PasswordHash))
             {
-                UserId = Guid.NewGuid(),
-                Name = "New User",
-                Email = "newuser@example.com",
-                Role = "Student",
-                PasswordHash = "hashedpassword"
-            };
+                return BadRequest("Email and password are required.");
+            }
 
-            // Act
-            var result = await _controller.PostUserModel(userDto);
+            var user = await _context.UserModels
+                .FirstOrDefaultAsync(u => u.Email == loginData.Email);
 
-            // Assert
-            Assert.That(result.Result, Is.InstanceOf<CreatedAtActionResult>());
-            var createdResult = result.Result as CreatedAtActionResult;
-            Assert.That(createdResult, Is.Not.Null);
-            var createdUser = createdResult.Value as UserModel;
-            Assert.That(createdUser, Is.Not.Null);
-            Assert.That(createdUser.Name, Is.EqualTo(userDto.Name));
-            Assert.That(createdUser.Email, Is.EqualTo(userDto.Email));
+            if (user == null || user.PasswordHash != loginData.PasswordHash)
+            {
+                return Unauthorized("Invalid credentials.");
+            }
+
+            return Ok(new UserDTO
+            {
+                UserId = user.UserId,
+                Name = user.Name,
+                Email = user.Email,
+                Role = user.Role,
+                PasswordHash = ""
+            });
         }
 
-        [Test]
-        public async Task Login_WithValidCredentials_ReturnsUser()
+        public class LoginInput
         {
-            // Arrange
-            var user = new UserModel
-            {
-                UserId = Guid.NewGuid(),
-                Name = "Test User",
-                Email = "test@example.com",
-                Role = "Student",
-                PasswordHash = "correctpassword"
-            };
-            await _context.UserModels.AddAsync(user);
-            await _context.SaveChangesAsync();
-
-            var loginInput = new UserModelsController.LoginInput
-            {
-                Email = "test@example.com",
-                PasswordHash = "correctpassword"
-            };
-
-            // Act
-            var result = await _controller.Login(loginInput);
-
-            // Assert
-            Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
-            var okResult = result.Result as OkObjectResult;
-            var returnedUser = okResult.Value as UserDTO;
-            Assert.That(returnedUser.Email, Is.EqualTo(user.Email));
-            Assert.That(returnedUser.PasswordHash, Is.Empty);
+            public string Email { get; set; }
+            public string PasswordHash { get; set; }
         }
 
-        [Test]
-        public async Task DeleteUserModel_WithValidId_RemovesUser()
+
+
+        // DELETE: api/UserModels/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUserModel(Guid id)
         {
-            // Arrange
-            var userId = Guid.NewGuid();
-            var user = new UserModel 
-            { 
-                UserId = userId, 
-                Name = "Test User", 
-                Email = "test@example.com", 
-                Role = "Student",
-                PasswordHash = "hashedpassword"
-            };
-            await _context.UserModels.AddAsync(user);
+            var user = await _context.UserModels.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound("User not found.");
+            }
+
+            _context.UserModels.Remove(user);
             await _context.SaveChangesAsync();
 
-            // Act
-            var result = await _controller.DeleteUserModel(userId);
+            return NoContent();
+        }
 
-            // Assert
-            Assert.That(result, Is.InstanceOf<NoContentResult>());
-            var deletedUser = await _context.UserModels.FindAsync(userId);
-            Assert.That(deletedUser, Is.Null);
+        private bool UserModelExists(Guid id)
+        {
+            return _context.UserModels.Any(e => e.UserId == id);
         }
     }
-} 
+}
