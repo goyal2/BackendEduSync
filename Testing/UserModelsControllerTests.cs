@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using EduSyncWebApi.Controllers;
 using EduSyncWebApi.Models;
 using EduSyncWebApi.DTO;
+using Microsoft.Extensions.Logging;
+using Moq;
 using NUnit.Framework;
 
 namespace Testing
@@ -10,12 +12,14 @@ namespace Testing
     public class UserModelsControllerTests : TestBase
     {
         private UserModelsController _controller;
+        private Mock<ILogger<UserModelsController>> _mockLogger;
 
         [SetUp]
         public override void Setup()
         {
             base.Setup();
-            _controller = new UserModelsController(_context);
+            _mockLogger = new Mock<ILogger<UserModelsController>>();
+            _controller = new UserModelsController(_context, _mockLogger.Object);
         }
 
         [Test]
