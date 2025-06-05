@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -65,16 +65,16 @@ namespace EduSyncWebApi.Controllers
                 return BadRequest();
             }
 
-            var existingCourse = await _context.CourseModels.FindAsync(id);
-            if (existingCourse == null)
+            CourseModel orignalCourse = new CourseModel()
             {
-                return NotFound();
-            }
+                CourseId = course.CourseId,
+                Title = course.Title,
+                Description = course.Description,
+                InstructorId = course.InstructorId,
+                MediaUrl = course.MediaUrl
+            };
 
-            existingCourse.Title = course.Title;
-            existingCourse.Description = course.Description;
-            existingCourse.InstructorId = course.InstructorId;
-            existingCourse.MediaUrl = course.MediaUrl;
+            _context.Entry(orignalCourse).State = EntityState.Modified;
 
             try
             {
