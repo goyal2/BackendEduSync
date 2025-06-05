@@ -1,235 +1,165 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using EduSyncWebApi.Controllers;
+using Microsoft.EntityFrameworkCore;
+using EduSyncWebApi.Data;
 using EduSyncWebApi.Models;
 using EduSyncWebApi.DTO;
-using NUnit.Framework;
+using Azure.Storage.Blobs;
+using System.Text;
+using System.Text.Json;
 
-namespace Testing
+namespace EduSyncWebApi.Controllers
 {
-    [TestFixture]
-    public class CourseModelsControllerTests : TestBase
+    [Route("api/[controller]")]
+    [ApiController]
+    public class CourseModelsController : ControllerBase
     {
-        private CourseModelsController _controller;
+        private readonly AppDbContext _context;
 
-        [SetUp]
-        public override void Setup()
+        public CourseModelsController(AppDbContext context)
         {
-            base.Setup();
-            _controller = new CourseModelsController(_context);
+            _context = context;
         }
 
-        [Test]
-        public async Task GetCoursesByInstructor_WithoutInstructorId_ReturnsAllCourses()
+        // GET: api/CourseModels
+        // GET: api/CourseModels?instructorId=123
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<CourseModel>>> GetCoursesByInstructor([FromQuery] Guid? instructorId)
         {
-            // Arrange
-            var courses = new List<CourseModel>
+            if (instructorId != null)
             {
-                new CourseModel 
-                { 
-                    CourseId = Guid.NewGuid(), 
-                    Title = "Course 1", 
-                    Description = "Description 1", 
-                    InstructorId = Guid.NewGuid(),
-                    MediaUrl = "url1"
-                },
-                new CourseModel 
-                { 
-                    CourseId = Guid.NewGuid(), 
-                    Title = "Course 2", 
-                    Description = "Description 2", 
-                    InstructorId = Guid.NewGuid(),
-                    MediaUrl = "url2"
-                }
-            };
-            await _context.CourseModels.AddRangeAsync(courses);
-            await _context.SaveChangesAsync();
+                return await _context.CourseModels
+                    .Where(c => c.InstructorId == instructorId)
+                    .ToListAsync();
+            }
 
-            // Act
-            var result = await _controller.GetCoursesByInstructor(null);
-
-            // Assert
-            Assert.That(result.Value, Is.Not.Null);
-            Assert.That(result.Value.Count(), Is.EqualTo(2));
+            return await _context.CourseModels.ToListAsync();
         }
 
-        [Test]
-        public async Task GetCoursesByInstructor_WithInstructorId_ReturnsFilteredCourses()
+
+        // GET: api/CourseModels/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<CourseModel>> GetCourseModel(Guid id)
         {
-            // Arrange
-            var instructorId = Guid.NewGuid();
-            var courses = new List<CourseModel>
+            var courseModel = await _context.CourseModels.FindAsync(id);
+
+            if (courseModel == null)
             {
-                new CourseModel 
-                { 
-                    CourseId = Guid.NewGuid(), 
-                    Title = "Course 1", 
-                    Description = "Description 1", 
-                    InstructorId = instructorId,
-                    MediaUrl = "url1"
-                },
-                new CourseModel 
-                { 
-                    CourseId = Guid.NewGuid(), 
-                    Title = "Course 2", 
-                    Description = "Description 2", 
-                    InstructorId = Guid.NewGuid(),
-                    MediaUrl = "url2"
-                }
-            };
-            await _context.CourseModels.AddRangeAsync(courses);
-            await _context.SaveChangesAsync();
+                return NotFound();
+            }
 
-            // Act
-            var result = await _controller.GetCoursesByInstructor(instructorId);
-
-            // Assert
-            Assert.That(result.Value, Is.Not.Null);
-            Assert.That(result.Value.Count(), Is.EqualTo(1));
-            Assert.That(result.Value.First().Title, Is.EqualTo("Course 1"));
+            return courseModel;
         }
 
-        [Test]
-        public async Task GetCourseModel_WithValidId_ReturnsCourse()
+        // PUT: api/CourseModels/5
+        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutCourse(Guid id, CourseDTO course)
         {
-            // Arrange
-            var courseId = Guid.NewGuid();
-            var course = new CourseModel 
-            { 
-                CourseId = courseId, 
-                Title = "Test Course", 
-                Description = "Test Description",
-                InstructorId = Guid.NewGuid(),
-                MediaUrl = "test-url"
-            };
-            await _context.CourseModels.AddAsync(course);
-            await _context.SaveChangesAsync();
-
-            // Act
-            var result = await _controller.GetCourseModel(courseId);
-
-            // Assert
-            Assert.That(result.Value, Is.Not.Null);
-            Assert.That(result.Value.CourseId, Is.EqualTo(courseId));
-            Assert.That(result.Value.Title, Is.EqualTo("Test Course"));
-        }
-
-        [Test]
-        public async Task GetCourseModel_WithInvalidId_ReturnsNotFound()
-        {
-            // Arrange
-            var invalidId = Guid.NewGuid();
-
-            // Act
-            var result = await _controller.GetCourseModel(invalidId);
-
-            // Assert
-            Assert.That(result.Result, Is.InstanceOf<NotFoundResult>());
-        }
-
-        [Test]
-        public async Task PostCourse_WithValidData_CreatesCourse()
-        {
-            // Arrange
-            var courseDto = new CourseDTO
+            if (id != course.CourseId)
             {
-                CourseId = Guid.NewGuid(),
-                Title = "New Course",
-                Description = "New Description",
-                InstructorId = Guid.NewGuid(),
-                MediaUrl = "new-url"
-            };
+                return BadRequest();
+            }
 
-            // Act
-            var result = await _controller.PostCourse(courseDto);
-
-            // Assert
-            Assert.That(result.Result, Is.InstanceOf<CreatedAtActionResult>());
-            var createdResult = result.Result as CreatedAtActionResult;
-            var createdCourse = createdResult.Value as CourseModel;
-            Assert.That(createdCourse.Title, Is.EqualTo(courseDto.Title));
-            Assert.That(createdCourse.Description, Is.EqualTo(courseDto.Description));
-            Assert.That(createdCourse.MediaUrl, Is.EqualTo(courseDto.MediaUrl));
-        }
-
-        [Test]
-        public async Task DeleteCourseModel_WithValidId_RemovesCourse()
-        {
-            // Arrange
-            var courseId = Guid.NewGuid();
-            var course = new CourseModel 
-            { 
-                CourseId = courseId, 
-                Title = "Test Course", 
-                Description = "Test Description",
-                InstructorId = Guid.NewGuid(),
-                MediaUrl = "test-url"
-            };
-            await _context.CourseModels.AddAsync(course);
-            await _context.SaveChangesAsync();
-
-            // Act
-            var result = await _controller.DeleteCourseModel(courseId);
-
-            // Assert
-            Assert.That(result, Is.InstanceOf<NoContentResult>());
-            var deletedCourse = await _context.CourseModels.FindAsync(courseId);
-            Assert.That(deletedCourse, Is.Null);
-        }
-
-        [Test]
-        public async Task PutCourse_WithValidData_UpdatesCourse()
-        {
-            // Arrange
-            var courseId = Guid.NewGuid();
-            var course = new CourseModel 
-            { 
-                CourseId = courseId, 
-                Title = "Original Title", 
-                Description = "Original Description",
-                InstructorId = Guid.NewGuid(),
-                MediaUrl = "original-url"
-            };
-            await _context.CourseModels.AddAsync(course);
-            await _context.SaveChangesAsync();
-
-            var updatedCourseDto = new CourseDTO
+            CourseModel orignalCourse = new CourseModel()
             {
-                CourseId = courseId,
-                Title = "Updated Title",
-                Description = "Updated Description",
+                CourseId = course.CourseId,
+                Title = course.Title,
+                Description = course.Description,
                 InstructorId = course.InstructorId,
-                MediaUrl = "updated-url"
+                MediaUrl = course.MediaUrl
             };
 
-            // Act
-            var result = await _controller.PutCourse(courseId, updatedCourseDto);
+            _context.Entry(orignalCourse).State = EntityState.Modified;
 
-            // Assert
-            Assert.That(result, Is.InstanceOf<NoContentResult>());
-            var updatedCourse = await _context.CourseModels.FindAsync(courseId);
-            Assert.That(updatedCourse.Title, Is.EqualTo("Updated Title"));
-            Assert.That(updatedCourse.Description, Is.EqualTo("Updated Description"));
-            Assert.That(updatedCourse.MediaUrl, Is.EqualTo("updated-url"));
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!CourseModelExists(id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return NoContent();
         }
 
-        [Test]
-        public async Task PutCourse_WithMismatchedIds_ReturnsBadRequest()
+
+        // POST: api/CourseModels
+        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        [HttpPost]
+        public async Task<ActionResult<CourseModel>> PostCourse(CourseDTO courseModel)
         {
-            // Arrange
-            var courseId = Guid.NewGuid();
-            var differentId = Guid.NewGuid();
-            var courseDto = new CourseDTO
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            //course.CourseId = Guid.NewGuid();
+            CourseModel orignalCourse = new CourseModel()
             {
-                CourseId = differentId,
-                Title = "Test Course",
-                Description = "Test Description"
+                CourseId = courseModel.CourseId,
+                Title = courseModel.Title,
+                Description = courseModel.Description,
+                InstructorId = courseModel.InstructorId,
+                MediaUrl = courseModel.MediaUrl
             };
 
-            // Act
-            var result = await _controller.PutCourse(courseId, courseDto);
+            _context.CourseModels.Add(orignalCourse);
 
-            // Assert
-            Assert.That(result, Is.InstanceOf<BadRequestResult>());
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                if (CourseModelExists(orignalCourse.CourseId))
+                {
+                    return Conflict();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return CreatedAtAction("GetCourseModel", new { id = orignalCourse.CourseId }, orignalCourse);
+        }
+
+
+
+
+
+        // DELETE: api/CourseModels/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteCourseModel(Guid id)
+        {
+            var courseModel = await _context.CourseModels.FindAsync(id);
+            if (courseModel == null)
+            {
+                return NotFound();
+            }
+
+            _context.CourseModels.Remove(courseModel);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+
+        private bool CourseModelExists(Guid id)
+        {
+            return _context.CourseModels.Any(e => e.CourseId == id);
         }
     }
-} 
+}
+
