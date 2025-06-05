@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -25,8 +25,15 @@ namespace EduSyncWebApi.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserModel>>> GetUserModels()
         {
-            
-            return await _context.UserModels.ToListAsync();
+            try
+            {
+                var users = await _context.UserModels.ToListAsync();
+                return users;
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while retrieving users", error = ex.Message });
+            }
         }
 
         // GET: api/UserModels/{id}
