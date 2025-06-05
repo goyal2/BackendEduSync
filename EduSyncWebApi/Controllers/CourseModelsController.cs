@@ -65,16 +65,16 @@ namespace EduSyncWebApi.Controllers
                 return BadRequest();
             }
 
-            CourseModel orignalCourse = new CourseModel()
+            var existingCourse = await _context.CourseModels.FindAsync(id);
+            if (existingCourse == null)
             {
-                CourseId = course.CourseId,
-                Title = course.Title,
-                Description = course.Description,
-                InstructorId = course.InstructorId,
-                MediaUrl = course.MediaUrl
-            };
+                return NotFound();
+            }
 
-            _context.Entry(orignalCourse).State = EntityState.Modified;
+            existingCourse.Title = course.Title;
+            existingCourse.Description = course.Description;
+            existingCourse.InstructorId = course.InstructorId;
+            existingCourse.MediaUrl = course.MediaUrl;
 
             try
             {
